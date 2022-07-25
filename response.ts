@@ -1,17 +1,34 @@
-import {responseHandler} from "./response-handler";
+import { responseHandler } from "./response-handler";
 
 //200 OK
 export const success = (res: any, data: any, msg: string) => {
+  if (responseHandler.encryption) {
+    data = responseHandler.encryption(data);
+  }
   res.status(200).send({ data, msg });
+};
+
+const handleConflict = (err: any) => {
+  if (responseHandler.dbDialect == "mssql") {
+    return err?.original?.number === 547;
+  }
+  if (responseHandler.dbDialect == "mysql") {
+    return err?.original?.errno === 1451;
+  }
+  return false;
 };
 
 //500 SERVER ERROR
 export const serverError = (res: any, err: any) => {
-    if(res.headersSent) return
-    if(responseHandler.errLogger) {
-        responseHandler.errLogger(err)
-    }
-  res.status(500).send({ err });
+  if (res.headersSent) return;
+  if (responseHandler.errLogger) {
+    responseHandler.errLogger(err);
+  }
+  if (handleConflict(err)) {
+    res.status(409).send({ status: 0, msg: "Already in use" });
+  } else {
+    res.status(500).send({ err });
+  }
 };
 
 //404 Not Found
